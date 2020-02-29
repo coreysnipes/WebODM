@@ -71,6 +71,12 @@ class Map extends React.Component {
   }
 
   loadImageryLayers(forceAddLayers = false){
+    // Cancel previous requests
+    if (this.tileJsonRequests) {
+        this.tileJsonRequests.forEach(tileJsonRequest => tileJsonRequest.abort());
+        this.tileJsonRequests = [];
+    }
+
     const { tiles } = this.props,
           layerId = layer => {
             const meta = layer[Symbol.for("meta")];
@@ -109,9 +115,9 @@ class Map extends React.Component {
 
             // Build URL
             let tileUrl = mres.tiles[0];
-
-            // Certain types need the rescale parameter
-            if (["plant", "dsm", "dtm"].indexOf(type) !== -1 && statistics){
+            
+            // Set rescale
+            if (statistics){
                 const params = Utils.queryParams({search: tileUrl.slice(tileUrl.indexOf("?"))});
                 if (statistics["1"]){
                     // Add rescale
@@ -197,9 +203,11 @@ class Map extends React.Component {
         );
       }, err => {
         if (err){
-          this.setState({error: err.message || JSON.stringify(err)});
-        }
-        resolve();
+          if (err !== "abort"){
+              this.setState({error: err.message || JSON.stringify(err)});
+          }
+          reject();
+        }else resolve();
       });
     });
   }
@@ -214,6 +222,10 @@ class Map extends React.Component {
       minZoom: 0,
       maxZoom: 24
     });
+
+    // For some reason, in production this class is not added (but we need it)
+    // leaflet bug?
+    $(this.container).addClass("leaflet-touch");
 
     PluginsAPI.Map.triggerWillAddControls({
         map: this.map,
@@ -405,11 +417,11 @@ https://a.tile.openstreetmap.org/{z}/{x}/{y}.png
     });
 
     if (prevProps.tiles !== this.props.tiles){
-      this.loadImageryLayers();
+      this.loadImageryLayers(true);
     }
 
     if (this.layersControl && (prevState.imageryLayers !== this.state.imageryLayers ||
-                               prevState.overlays !== this.state.overlays)){
+                            prevState.overlays !== this.state.overlays)){
         this.layersControl.update(this.state.imageryLayers, this.state.overlays);
     }
   }
